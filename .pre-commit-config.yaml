@@ -1,0 +1,80 @@
+# .pre-commit-config.yaml
+# Минимальный, но мощный набор без дублирования:
+# - Ruff заменяет flake8/pycodestyle/isort/pyupgrade/black и т.п.
+# - Prettier форматирует YAML/JSON
+# - yamllint строго валидирует YAML
+# - check-json/check-yaml ловят синтаксические ошибки до форматирования
+# - mypy — статическая типизация Python
+# При необходимости поменяйте версию Python ниже.
+#default_language_version:
+#  python: python3.13
+
+repos:
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    # uv version.
+    rev: 0.8.14
+    hooks:
+      - id: uv-lock
+
+    # --- Базовые быстрые проверки ---
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-merge-conflict
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-yaml
+        files: \.(ya?ml)$
+      - id: check-json
+        files: \.(json)$
+      - id: check-added-large-files
+        # Prevent giant files from being committed.
+        args: [--maxkb=500]
+
+  - repo: https://gitlab.com/vojko.pribudic.foss/pre-commit-update
+    # https://pypi.org/project/pre-commit-update/
+    rev: v0.8.0
+    hooks:
+      - id: pre-commit-update
+
+    # --- Форматирование YAML/JSON (одно средство) ---
+  - repo: https://github.com/JoC0de/pre-commit-prettier
+    rev: v3.6.2 # или актуальный тег из репозитория
+    hooks:
+      - id: prettier
+        files: \.(json|ya?ml)$
+        additional_dependencies:
+          - prettier@3.3.3
+        # при желании можно добавить конфиг .prettierrc.{json,yaml}
+
+    # --- Линт и формат для Python (без black/isort/flake8) ---
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.11
+    hooks:
+      # Сначала форматирование Ruff (аналог black, но быстрее)
+      - id: ruff-format
+        files: \.(py)$
+        # Затем линт (+ автопочинка) и сортировка импортов
+      - id: ruff-check
+        files: \.(py)$
+        args: [--fix, --unsafe-fixes, --exit-zero]
+        verbose: true
+        # Пример отключения тяжёлых правил:
+        # (основные настройки лучше держать в pyproject.toml)
+        # additional_dependencies: []
+
+    # --- Статическая типизация Python ---
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.17.1
+    hooks:
+      - id: mypy
+        # TODO: Remove "manual" stage.
+        stages: [manual]
+        verbose: true
+
+        files: \.(py)$
+        args: [--strict]
+        # Добавьте типы сторонних пакетов при необходимости:
+        # additional_dependencies:
+        #   - types-requests
+        #   - types-PyYAML
