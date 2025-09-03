@@ -10,7 +10,7 @@ from .remote_cache_client_base import RemoteCacheClientBase
 from .typing import T_NAMESPACE, T_OUTPUT_DATA_STR
 
 
-class RemoteCacheClient[Main: BaseModel, Extra](BaseModel):
+class RemoteCacheClient(BaseModel):
     """Smart client for interacting with a remote cache service.
 
     Allows for:
@@ -68,17 +68,16 @@ class RemoteCacheClient[Main: BaseModel, Extra](BaseModel):
         if self.remote_cache_client is not None:
             await self.remote_cache_client.http_client.close()
 
-    async def get_with_set(
+    async def get_with_set[Main: BaseModel, Extra](
         self,
         input_data: Main,
         async_action: Callable[[Main, Extra], Awaitable[T_OUTPUT_DATA_STR]],
-        extra: Extra | None = None,
+        extra: Extra,
     ) -> T_OUTPUT_DATA_STR:
         if self.remote_cache_client is None:
-            return await self._call_action(
-                main=input_data,
-                async_action=async_action,
-                extra=extra,
+            return await async_action(
+                input_data,
+                extra,
             )
 
         input_data_as_str = input_data.model_dump_json()

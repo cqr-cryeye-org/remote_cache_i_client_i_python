@@ -25,4 +25,3 @@ pre-commit run --all-files
 ## Examples:
 
 See [examples](./examples).
-

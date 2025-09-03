@@ -1,3 +1,5 @@
+import os
+
 import aiohttp
 from pydantic import BaseModel, HttpUrl
 
@@ -33,10 +35,13 @@ async def example(
 
 
 async def main() -> None:
+    base_url = os.environ.get("REMOTE_CACHE_BASE_URL", "https://some.domain:123")
+    api_key = os.environ.get("REMOTE_CACHE_API_KEY", "api_key")
+
     async with (
         await RemoteCacheClient.create(
-            base_url=HttpUrl("https://some.domain:123"),
-            api_key="api_key",
+            base_url=HttpUrl(base_url),
+            api_key=api_key,
             namespace="debug",
             verify_ssl=False,
         ) as cache_client,
