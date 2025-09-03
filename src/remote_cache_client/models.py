@@ -2,7 +2,7 @@ import random
 
 from pydantic import BaseModel
 
-from remote_cache_client.typing import T_INPUT_DATA_STR, T_NAMESPACE, T_OUTPUT_DATA_STR
+from .typing import T_INPUT_DATA_STR, T_NAMESPACE, T_OUTPUT_DATA_STR
 
 
 class CacheId(BaseModel):

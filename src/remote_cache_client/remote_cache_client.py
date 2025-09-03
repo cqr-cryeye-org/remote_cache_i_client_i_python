@@ -6,8 +6,8 @@ from typing import Self
 
 from pydantic import BaseModel, Field, HttpUrl
 
-from remote_cache_client import RemoteCacheClientBase
-from remote_cache_client.typing import T_NAMESPACE, T_OUTPUT_DATA_STR
+from .remote_cache_client_base import RemoteCacheClientBase
+from .typing import T_NAMESPACE, T_OUTPUT_DATA_STR
 
 
 class RemoteCacheClient[Main: BaseModel, Extra](BaseModel):
