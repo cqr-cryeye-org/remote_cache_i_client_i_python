@@ -24,4 +24,5 @@ pre-commit run --all-files
 
 ## Examples:
 
-See [examples](./examples).
+See examples:
+- [client](./tests/integration/test_client.py)

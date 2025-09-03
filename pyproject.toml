@@ -1,6 +1,6 @@
 [project]
 name = "remote-cache-client"
-version = "0.0.5"
+version = "0.0.6"
 
 description = "A client for remote caching."
 
@@ -24,6 +24,7 @@ dev = [
     "mypy>=1.17.1",
     "pytest>=8.4.1",
     "pytest-asyncio>=1.1.0",
+    "python-dotenv>=1.1.1",
 ]
 
 
@@ -127,4 +128,8 @@ allow-dict-calls-with-keyword-arguments = true
 "__init__.py" = [
     # Unused import.
     "F401",
+]
+"tests/**" = [
+    # Allow `assert` statements in tests.
+    "S101",
 ]
