@@ -93,7 +93,7 @@ class RemoteCacheClientBase(BaseModel):
                     namespace=namespace,
                     input=input_data,
                 ).model_dump(mode="json"),
-                verify_ssl=self.verify_ssl,
+                ssl=self.verify_ssl,
             ) as response:
                 if response.status == http.HTTPStatus.OK:
                     self.cache_stats.hits += 1
@@ -134,7 +134,7 @@ class RemoteCacheClientBase(BaseModel):
                     cache_id=cache_id,
                     output=output_data,
                 ).model_dump(mode="json"),
-                verify_ssl=self.verify_ssl,
+                ssl=self.verify_ssl,
             ) as response:
                 if response.status == http.HTTPStatus.OK:
                     return

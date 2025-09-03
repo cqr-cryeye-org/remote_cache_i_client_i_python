@@ -68,29 +68,10 @@ class RemoteCacheClient[Main: BaseModel, Extra](BaseModel):
         if self.remote_cache_client is not None:
             await self.remote_cache_client.http_client.close()
 
-    @staticmethod
-    async def _call_action(
-        main: Main,
-        async_action: Callable[[Main], Awaitable[T_OUTPUT_DATA_STR]]
-        | Callable[[Main, Extra], Awaitable[T_OUTPUT_DATA_STR]],
-        extra: Extra | None = None,
-    ) -> str:
-        return (
-            await async_action(
-                main,
-            )
-            if extra is None
-            else await async_action(
-                main,
-                extra,
-            )
-        )
-
     async def get_with_set(
         self,
         input_data: Main,
-        async_action: Callable[[Main], Awaitable[T_OUTPUT_DATA_STR]]
-        | Callable[[Main, Extra], Awaitable[T_OUTPUT_DATA_STR]],
+        async_action: Callable[[Main, Extra], Awaitable[T_OUTPUT_DATA_STR]],
         extra: Extra | None = None,
     ) -> T_OUTPUT_DATA_STR:
         if self.remote_cache_client is None:
@@ -106,10 +87,9 @@ class RemoteCacheClient[Main: BaseModel, Extra](BaseModel):
         if result.is_hit():
             return result.get_output()
 
-        data = await self._call_action(
-            main=input_data,
-            async_action=async_action,
-            extra=extra,
+        data = await async_action(
+            input_data,
+            extra,
         )
 
         await self.remote_cache_client.set(
