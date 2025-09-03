@@ -2,9 +2,11 @@ import random
 
 from pydantic import BaseModel
 
+from remote_cache_client.typing import T_INPUT_DATA_STR, T_NAMESPACE, T_OUTPUT_DATA_STR
+
 
 class CacheId(BaseModel):
-    namespace: str
+    namespace: T_NAMESPACE
 
     hash_name: str
     hash_value: str
@@ -12,17 +14,17 @@ class CacheId(BaseModel):
 
 
 class CacheRecordResponseOk(BaseModel):
-    output: str
+    output: T_OUTPUT_DATA_STR
 
 
 class CacheRecordRequest(BaseModel):
-    namespace: str
-    input: str
+    namespace: T_NAMESPACE
+    input: T_INPUT_DATA_STR
 
 
 class CacheRecordSetOutput(BaseModel):
     cache_id: CacheId
-    output: str
+    output: T_OUTPUT_DATA_STR
 
 
 class CacheStats(BaseModel):
@@ -31,7 +33,7 @@ class CacheStats(BaseModel):
 
 
 class CacheGetResult(BaseModel):
-    output: str | None = None
+    output: T_OUTPUT_DATA_STR | None = None
     cache_id: CacheId | None = None
 
     def is_hit(self) -> bool:

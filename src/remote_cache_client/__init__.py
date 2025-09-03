@@ -1,3 +1,3 @@
 from pydantic import HttpUrl
 
-from .remote_cache_client import RemoteCacheClient
+from remote_cache_client.remote_cache_client_base import RemoteCacheClientBase

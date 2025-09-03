@@ -26,14 +26,14 @@ pre-commit run --all-files
 
 ```python
 from pydantic import HttpUrl
-from remote_cache_client import RemoteCacheClient
+from remote_cache_client import RemoteCacheClientBase
 
 
 async def make_action() -> str:
     return "world"
 
 
-async def example(cache_client: RemoteCacheClient) -> str:
+async def example(cache_client: RemoteCacheClientBase) -> str:
     input_data = "hello"
 
     cache_result = await cache_client.get(input_data)
@@ -55,7 +55,7 @@ async def example(cache_client: RemoteCacheClient) -> str:
 
 
 async def main() -> None:
-    async with await RemoteCacheClient.create(
+    async with await RemoteCacheClientBase.create(
             base_url=HttpUrl("https://some.domain:123"),
             api_key="api_key",
             namespace="debug",

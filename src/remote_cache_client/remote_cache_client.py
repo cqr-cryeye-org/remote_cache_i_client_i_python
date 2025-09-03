@@ -1,62 +1,54 @@
-import asyncio
-import http
 import logging
+from collections.abc import Awaitable, Callable
 from logging import Logger
 from types import TracebackType
 from typing import Self
 
-import aiohttp
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl
 
-from remote_cache_client.models import (
-    CacheGetResult,
-    CacheId,
-    CacheRecordRequest,
-    CacheRecordResponseOk,
-    CacheRecordSetOutput,
-    CacheStats,
-    RetryConfig,
-)
+from remote_cache_client import RemoteCacheClientBase
+from remote_cache_client.typing import T_NAMESPACE, T_OUTPUT_DATA_STR
 
 
-class RemoteCacheClient(BaseModel):
-    """Async client for interacting with a remote cache service."""
+class RemoteCacheClient[Main: BaseModel, Extra](BaseModel):
+    """Smart client for interacting with a remote cache service.
 
-    namespace: str
-    http_client: aiohttp.ClientSession
-    verify_ssl: bool = True
+    Allows for:
+    "transparent mode" (no cache used).
+        When no config is provided, this client will not use a cache.
+        Useful when cache is optional.
 
-    retry_config: RetryConfig = Field(default_factory=RetryConfig)
+    pydantic-based simplified action.
 
-    cache_stats: CacheStats = Field(default_factory=CacheStats)
+    All this allows you to avoid boilerplate code in the application.
+    """
+
+    remote_cache_client: RemoteCacheClientBase | None = None
 
     logger: Logger = Field(default_factory=lambda: logging.getLogger(__name__))
-
-    model_config = ConfigDict(
-        arbitrary_types_allowed=True,
-    )
 
     @classmethod
     async def create(
         cls,
-        base_url: HttpUrl,
-        api_key: str,
-        namespace: str,
+        base_url: None | HttpUrl,
+        api_key: None | str,
+        #
+        namespace: T_NAMESPACE,
         *,
         verify_ssl: bool = True,
     ) -> Self:
-        """Create a new RemoteCacheClient instance with an initialized HTTP client."""
-        client = aiohttp.ClientSession(
-            base_url=str(base_url),
-            headers={
-                "X-API-Key": api_key,
-            },
-        )
-        return cls(
-            http_client=client,
-            namespace=namespace,
-            verify_ssl=verify_ssl,
-        )
+        """Create a new RemoteCacheClientSmart instance with an initialized RemoteCacheClient if config is provided."""
+        if base_url is not None and api_key is not None:
+            remote_cache_client = await RemoteCacheClientBase.create(
+                base_url=base_url,
+                api_key=api_key,
+                namespace=namespace,
+                verify_ssl=verify_ssl,
+            )
+            return cls(remote_cache_client=remote_cache_client)
+        logger = logging.getLogger(__name__)
+        logger.warning("No config provided. Using transparent mode.")
+        return cls(remote_cache_client=None)
 
     async def __aenter__(self) -> Self:
         """Enter async context manager."""
@@ -69,82 +61,56 @@ class RemoteCacheClient(BaseModel):
         exc_tb: TracebackType | None,
     ) -> None:
         """Exit async context manager and close HTTP client."""
-        await self.http_client.close()
+        if self.remote_cache_client is not None:
+            await self.remote_cache_client.http_client.close()
 
-    async def get(
+    @staticmethod
+    async def _call_action(
+        main: Main,
+        async_action: Callable[[Main], Awaitable[T_OUTPUT_DATA_STR]]
+        | Callable[[Main, Extra], Awaitable[T_OUTPUT_DATA_STR]],
+        extra: Extra | None = None,
+    ) -> str:
+        return (
+            await async_action(
+                main,
+            )
+            if extra is None
+            else await async_action(
+                main,
+                extra,
+            )
+        )
+
+    async def get_with_set(
         self,
-        input_data: str,
-        namespace_override: None | str = None,
-    ) -> CacheGetResult:
-        """Retrieve cached output for the given input data.
+        input_data: Main,
+        async_action: Callable[[Main], Awaitable[T_OUTPUT_DATA_STR]]
+        | Callable[[Main, Extra], Awaitable[T_OUTPUT_DATA_STR]],
+        extra: Extra | None = None,
+    ) -> T_OUTPUT_DATA_STR:
+        if self.remote_cache_client is None:
+            return await self._call_action(
+                main=input_data,
+                async_action=async_action,
+                extra=extra,
+            )
 
-        Returns output string if found, otherwise CacheId.
-        """
-        namespace = namespace_override or self.namespace
+        input_data_as_str = input_data.model_dump_json()
 
-        attempt = 1
-        while True:
-            async with self.http_client.post(
-                "/api/v1/cache/text/get",
-                json=CacheRecordRequest(
-                    namespace=namespace,
-                    input=input_data,
-                ).model_dump(mode="json"),
-                verify_ssl=self.verify_ssl,
-            ) as response:
-                if response.status == http.HTTPStatus.OK:
-                    self.cache_stats.hits += 1
-                    return CacheGetResult(
-                        output=CacheRecordResponseOk.model_validate(
-                            await response.json(),
-                        ).output,
-                    )
-                if response.status == http.HTTPStatus.NOT_FOUND:
-                    self.cache_stats.misses += 1
-                    return CacheGetResult(
-                        cache_id=CacheId.model_validate(await response.json()),
-                    )
+        result = await self.remote_cache_client.get(input_data_as_str)
+        if result.is_hit():
+            return result.get_output()
 
-                msg = f"Unexpected response status: {response.status}. Details: {await response.text()}"
+        data = await self._call_action(
+            main=input_data,
+            async_action=async_action,
+            extra=extra,
+        )
 
-                # If this is the last attempt, raise an exception.
-                # Else, wait with jitter
+        await self.remote_cache_client.set(
+            cache_id=result.get_cache_id(),
+            output_data=data,
+        )
 
-                if attempt >= self.retry_config.max_retries:
-                    # sourcery skip: raise-specific-error
-                    raise Exception(msg)  # noqa: TRY002
-
-                wait_time = self.retry_config.get_wait_time(attempt)
-                self.logger.warning(msg)
-                self.logger.warning(f"Attempt {attempt} failed. Retrying in {wait_time} ms.")
-
-                await asyncio.sleep(wait_time / 1000)
-                attempt += 1
-
-    async def set(self, cache_id: CacheId, output_data: str) -> None:
-        """Store output data in the cache for the given cache_id."""
-        attempt = 1
-        while True:
-            async with self.http_client.post(
-                "/api/v1/cache/text/create",
-                json=CacheRecordSetOutput(
-                    cache_id=cache_id,
-                    output=output_data,
-                ).model_dump(mode="json"),
-                verify_ssl=self.verify_ssl,
-            ) as response:
-                if response.status == http.HTTPStatus.OK:
-                    return
-
-                msg = f"Unexpected response status: {response.status} for SET. Details: {await response.text()}"
-
-                if attempt >= self.retry_config.max_retries:
-                    # sourcery skip: raise-specific-error
-                    raise Exception(msg)  # noqa: TRY002
-
-                wait_time = self.retry_config.get_wait_time(attempt)
-                self.logger.warning(msg)
-                self.logger.warning(f"Attempt {attempt} failed. Retrying in {wait_time} ms.")
-
-                await asyncio.sleep(wait_time / 1000)
-                attempt += 1
+        return data
