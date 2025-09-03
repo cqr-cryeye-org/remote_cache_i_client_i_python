@@ -4,7 +4,7 @@ from logging import Logger
 from types import TracebackType
 from typing import Self
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 from .remote_cache_client_base import RemoteCacheClientBase
 from .typing import T_NAMESPACE, T_OUTPUT_DATA_STR
@@ -26,6 +26,10 @@ class RemoteCacheClient[Main: BaseModel, Extra](BaseModel):
     remote_cache_client: RemoteCacheClientBase | None = None
 
     logger: Logger = Field(default_factory=lambda: logging.getLogger(__name__))
+
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+    )
 
     @classmethod
     async def create(
