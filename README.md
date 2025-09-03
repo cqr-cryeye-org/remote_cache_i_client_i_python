@@ -25,37 +25,31 @@ pre-commit run --all-files
 ## Example:
 
 ```python
-from pydantic import HttpUrl
-from remote_cache_client import RemoteCacheClientBase
+from pydantic import HttpUrl, BaseModel
+from remote_cache_client import RemoteCacheClient
 
 
-async def make_action() -> str:
-    return "world"
+class CacheableModel(BaseModel):
+    parameter: str
 
 
-async def example(cache_client: RemoteCacheClientBase) -> str:
-    input_data = "hello"
+async def make_action(data: CacheableModel) -> str:
+    return data.parameter[::-1]  # Just an example action
 
-    cache_result = await cache_client.get(input_data)
 
-    print(cache_result)
-
-    if cache_result.is_hit():
-        print("Cache hit")
-        return cache_result.get_output()
-
-    print("Cache miss")
-    action_result = await make_action()
-
-    await cache_client.set(
-        cache_id=cache_result.get_cache_id(),
-        output_data=action_result,
+async def example(cache_client: RemoteCacheClient) -> str:
+    input_data = CacheableModel(
+        parameter="hello",
     )
-    return action_result
+
+    return await cache_client.get_with_set(
+        input_data=input_data,
+        async_action=make_action,
+    )
 
 
 async def main() -> None:
-    async with await RemoteCacheClientBase.create(
+    async with await RemoteCacheClient.create(
             base_url=HttpUrl("https://some.domain:123"),
             api_key="api_key",
             namespace="debug",
@@ -68,5 +62,4 @@ if __name__ == "__main__":
     import asyncio
 
     asyncio.run(main())
-
 ```
